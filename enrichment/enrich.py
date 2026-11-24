@@ -62,7 +62,7 @@ def build_dc_code(selected) -> str:
 
 
 # Helper column — user-er table-e dekhanor dorkar nai
-_HIDDEN_COLS = ["Item_name_EN"]
+_HIDDEN_COLS = ["Item_name_EN", "_dc_detected"]
 
 
 def _get_dept_value(item_class):
@@ -150,6 +150,27 @@ def enrich_dataframe(base_df: pd.DataFrame, detected_pl: str = "") -> pd.DataFra
         pln_price = parse_pln_price(pln_raw)
 
         st.markdown("**Select DC Code**")
+
+        # PDF theke paoa DC (proti PDF-e ekta) -> checkbox auto-select
+        detected_dcs = []
+        if "_dc_detected" in df.columns:
+            for v in df["_dc_detected"].dropna().astype(str):
+                for part in v.split(","):          # "DC06,DC15" (extra PDF-er DC shoho) o cholbe
+                    part = part.strip()
+                    if part and part not in detected_dcs:
+                        detected_dcs.append(part)
+        _dc_sig = (str(first_row.get("Order_ID", "")), tuple(detected_dcs))
+        if st.session_state.get("_ui_dc_sig") != _dc_sig:   # notun PDF upload hole-i ekbar set hobe
+            # Upload kora PDF gulo-te DC_CODES-er shob gulo DC thakle -> shudhu DCALL (DC/ALL)
+            _all_present = all(c in detected_dcs for c in DC_CODES)
+            for _c in DC_CODES:
+                st.session_state[f"ui_dc_{_c}"] = (_c in detected_dcs) and not _all_present
+            st.session_state[f"ui_dc_{DC_ALL}"] = _all_present
+            st.session_state["_ui_dc_sig"] = _dc_sig
+        _unknown_dc = [d for d in detected_dcs if d not in DC_CODES]
+        if _unknown_dc:
+            st.caption(f"PDF-e DC {', '.join(_unknown_dc)} paoa gese kintu list-e nai — manually select korun ba DC_CODES-e add korun.")
+
         dc_cols = st.columns(len(DC_CODES) + 1)
         dc_sel = []
         for col, code in zip(dc_cols, DC_CODES + [DC_ALL]):
